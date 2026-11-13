@@ -816,4 +816,14 @@ profile=function(){
   if(colab)colab.remove();
 };
 
+
+function lsAutoTags(s){return [...new Set([...(String(s.tags||'').match(/#[\p{L}\p{N}_-]+/gu)||[]).map(t=>t.slice(1)),String(s.category||'').trim()].filter(Boolean).filter(t=>norm(t)!==norm('Sem categoria')).map(t=>norm(t)))];}
+const lsBeforeAutoCategory=inCategory;
+inCategory=function(s,id,filter){return String(filter||'').startsWith('auto:')?s.author===id&&lsAutoTags(s).includes(filter.slice(5)):lsBeforeAutoCategory(s,id,filter);};
+const lsBeforeAutoChips=categoryChips;
+categoryChips=function(id,selected,publicOnly=false){const base=lsBeforeAutoChips(id,selected,publicOnly);const tags=[...new Set(D.signs.filter(s=>s.author===id&&(publicOnly?isPublicSign(s):canSeeSign(s))).flatMap(lsAutoTags))].sort((a,b)=>a.localeCompare(b,'pt-BR'));return base+'<div class="category-row"><button type="button" data-category-filter="" class="'+(!selected?'on':'')+'">Todos</button>'+tags.map(t=>'<button type="button" data-category-filter="'+esc('auto:'+t)+'" class="'+(selected==='auto:'+t?'on':'')+'">'+esc('#'+t)+'</button>').join('')+'</div>';};
+const lsBeforeCategoryToggle=drawOwnProfile;
+drawOwnProfile=function(){lsBeforeCategoryToggle();const tools=$('#profileGifTools'),cats=$('#ownerCategories');if(!tools||!cats||profileSection!=='mine')return;let b=$('#autoCategoryToggle');if(!b){b=document.createElement('button');b.id='autoCategoryToggle';b.type='button';b.textContent='Categorias';tools.append(b);}cats.hidden=!lsShowCategories;b.setAttribute('aria-expanded',String(lsShowCategories));b.onclick=()=>{lsShowCategories=!lsShowCategories;cats.hidden=!lsShowCategories;b.setAttribute('aria-expanded',String(lsShowCategories));if(!lsShowCategories&&String(ownerFilter).startsWith('auto:')){ownerFilter='';drawOwnProfile();}};};
+let lsShowCategories=false;
+
 </script></body></html>
