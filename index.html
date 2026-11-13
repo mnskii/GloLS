@@ -826,4 +826,29 @@ const lsBeforeCategoryToggle=drawOwnProfile;
 drawOwnProfile=function(){lsBeforeCategoryToggle();const tools=$('#profileGifTools'),cats=$('#ownerCategories');if(!tools||!cats||profileSection!=='mine')return;let b=$('#autoCategoryToggle');if(!b){b=document.createElement('button');b.id='autoCategoryToggle';b.type='button';b.textContent='Categorias';tools.append(b);}cats.hidden=!lsShowCategories;b.setAttribute('aria-expanded',String(lsShowCategories));b.onclick=()=>{lsShowCategories=!lsShowCategories;cats.hidden=!lsShowCategories;b.setAttribute('aria-expanded',String(lsShowCategories));if(!lsShowCategories&&String(ownerFilter).startsWith('auto:')){ownerFilter='';drawOwnProfile();}};};
 let lsShowCategories=false;
 
+
+const lsMp4OpenBefore=openGif;
+let lsMp4DetailUrl='';
+detail.addEventListener('close',()=>{if(lsMp4DetailUrl)URL.revokeObjectURL(lsMp4DetailUrl);lsMp4DetailUrl='';});
+openGif=async function(id){
+ const sign=D.signs.find(x=>x.id===id);
+ if(!sign||!canSeeSign(sign))return;
+ await lsMp4OpenBefore(id);
+ if(!detail.open||$('#detailImage')?.dataset.detailSign!==id)return;
+ if(sign.mediaType!=='video/mp4')return;
+ try{
+ const token=onlineToken(),response=await rpc('onlineGifMedia',token,sign.globalKey);
+ if(D.onlineToken!==token||!detail.open||$('#detailImage')?.dataset.detailSign!==id)return;
+ if(response.type!=='video/mp4')throw Error('Formato de vídeo inválido.');
+ const blob=new Blob([Uint8Array.from(atob(response.data),c=>c.charCodeAt(0))],{type:response.type});
+ if(lsMp4DetailUrl)URL.revokeObjectURL(lsMp4DetailUrl);
+ lsMp4DetailUrl=URL.createObjectURL(blob);
+ const video=document.createElement('video');video.src=lsMp4DetailUrl;video.loop=true;video.muted=true;video.playsInline=true;video.controls=true;video.style.cssText='width:100%;max-height:65vh;object-fit:contain';video.onloadeddata=()=>seen(id);
+ $('#detailImage').replaceWith(video);
+ const speeds=document.createElement('div');speeds.className='tools';
+ for(const [rate,label] of [[.25,'0,25×'],[.5,'0,50×'],[.75,'0,75×'],[1,'Normal']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>{video.playbackRate=rate;};speeds.append(b);}
+ video.parentElement.after(speeds);video.play().catch(()=>{});
+ }catch(e){if(detail.open)alert(e.message);}
+};
+
 </script></body></html>
