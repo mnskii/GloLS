@@ -844,10 +844,7 @@ openGif=async function(id){
  if(lsMp4DetailUrl)URL.revokeObjectURL(lsMp4DetailUrl);
  lsMp4DetailUrl=URL.createObjectURL(blob);
  const video=document.createElement('video');video.src=lsMp4DetailUrl;video.loop=true;video.muted=true;video.playsInline=true;video.controls=true;video.style.cssText='width:100%;max-height:65vh;object-fit:contain';video.onloadeddata=()=>seen(id);
- $('#detailImage').replaceWith(video);
- const speeds=document.createElement('div');speeds.className='tools';
- for(const [rate,label] of [[.25,'0,25×'],[.5,'0,50×'],[.75,'0,75×'],[1,'Normal']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>{video.playbackRate=rate;};speeds.append(b);}
- video.parentElement.after(speeds);video.play().catch(()=>{});
+ video.id='detailImage';video.dataset.detailSign=id;$('#detailImage').replaceWith(video);video.play().catch(()=>{});
  }catch(e){if(detail.open)alert(e.message);}
 };
 
@@ -885,7 +882,7 @@ lsMp4PrepareButton.onclick=async()=>{
 lsMp4UseButton.onclick=()=>{if(!lsPreparedMp4||!$('#lsMp4File'))return;try{const transfer=new DataTransfer();transfer.items.add(new File([lsPreparedMp4],'sinal.mp4',{type:'video/mp4'}));$('#lsMp4File').files=transfer.files;$('#lsMp4Status').textContent='MP4 da câmera pronto. Informe o significado e clique em Publicar MP4 no Drive.';$('#editor').close();}catch(e){$('#editorStatus').textContent='Não foi possível transferir o vídeo neste navegador.';}};
 
 
-function lsRenderVideo(img,url){if(!img||!url)return;const v=document.createElement('video');v.src=url;v.muted=true;v.loop=true;v.autoplay=true;v.playsInline=true;v.style.cssText='width:100%;aspect-ratio:4/3;object-fit:contain;display:block';v.id=img.id;v.dataset.detailSign=img.dataset.detailSign||'';if(img.id==='detailImage'){v.controls=true;v.onloadeddata=()=>seen(v.dataset.detailSign);const speeds=document.createElement('div');[.25,.5,.75,1].forEach(n=>{const b=document.createElement('button');b.type='button';b.textContent=n===1?'Normal':String(n).replace('.',',')+'×';b.onclick=()=>v.playbackRate=n;speeds.append(b);});img.after(speeds);}img.replaceWith(v);}
+function lsRenderVideo(img,url){if(!img||!url)return;const v=document.createElement('video');v.src=url;v.muted=true;v.loop=true;v.autoplay=true;v.playsInline=true;v.style.cssText='width:100%;aspect-ratio:4/3;object-fit:contain;display:block';v.id=img.id;v.dataset.detailSign=img.dataset.detailSign||'';if(img.id==='detailImage'){v.controls=true;v.onloadeddata=()=>seen(v.dataset.detailSign);}img.replaceWith(v);}
 const lsCardsMedia=cards;cards=function(signs){const html=lsCardsMedia(signs);return html;};
 const lsWireMedia=wire;wire=function(scope=document,append=false){lsWireMedia(scope,append);scope.querySelectorAll('[data-sign-card]').forEach(card=>{const s=D.signs.find(x=>x.id===card.dataset.signCard);if(s?.mediaType==='video/mp4'&&!s.gif.startsWith('cloud:'))lsRenderVideo(card.querySelector('img'),imageURL(s.gif));});};
 const lsShowResultBefore=showResult;showResult=function(blob){lsShowResultBefore(blob);let v=$('#lsResultVideo');if(!v){v=document.createElement('video');v.id='lsResultVideo';v.controls=true;v.loop=true;v.muted=true;v.playsInline=true;v.style.width='100%';$('#resultPreview').after(v);}const mp4=blob.type==='video/mp4';v.hidden=!mp4;$('#resultPreview').hidden=mp4;if(mp4){v.src=resultURL;$('#downloadGif').download='sinal.mp4';}else{v.pause();v.removeAttribute('src');}};
@@ -950,5 +947,54 @@ window.addEventListener('online',()=>{if(me()&&D.onlineToken){flushPersonalDrive
 const lsMeaningPublish=form.onsubmit;
 form.onsubmit=async function(e){const lang=$('#lsMeaningLang')?.value||'pt',word=$('#word').value.trim(),english=lang==='en'?word:($('#lsMeaningEnglish')?.value||'').trim(),context=($('#lsMeaningContext')?.value||'').trim();if(!word||!pendingSign||lang==='pt'&&!english)return lsMeaningPublish.call(this,e);e.preventDefault();if(!english){alert('Informe a tradução do significado em inglês.');return;}if(!navigator.onLine){alert('A contribuição multilíngue precisa de conexão nesta versão. O arquivo selecionado foi mantido.');return;}if(form.dataset.meaningSaving)return;form.dataset.meaningSaving='1';try{await rpc('saveMeaningTranslation',onlineToken(),{lang,word,english,context});await lsMeaningPublish.call(this,e);}catch(err){alert(err.message);}finally{delete form.dataset.meaningSaving;}};
 window.addEventListener('online',()=>{if(D.onlineToken)checkRestrictedAccess();});
+
+
+/* Unified detail playback: GIF timing is changed in a temporary copy only. */
+function lsGifAtRate(source,rate){
+ const a=new Uint8Array(source.slice(0));
+ if(a.length<13||String.fromCharCode(...a.subarray(0,3))!=='GIF')throw Error('Formato GIF inválido.');
+ let p=13+((a[10]&128)?3*(1<<((a[10]&7)+1)):0),frames=0;
+ function skip(){while(p<a.length){const n=a[p++];if(!n)return;p+=n;}throw Error('GIF incompleto.');}
+ while(p<a.length){const t=a[p++];if(t===59)break;
+ if(t===33){const label=a[p++];if(label===249&&a[p]===4&&p+5<a.length){const d=a[p+2]+256*a[p+3];const n=Math.min(65535,Math.max(2,Math.round((d>1?d:10)/rate)));a[p+2]=n&255;a[p+3]=n>>8;frames++;}skip();}
+ else if(t===44){if(p+9>a.length)throw Error('GIF incompleto.');const f=a[p+8];p+=9;if(f&128)p+=3*(1<<((f&7)+1));p++;skip();}
+ else throw Error('GIF inválido.');
+ }
+ if(!frames)throw Error('Este GIF não possui tempos de animação.');
+ return new Blob([a],{type:'image/gif'});
+}
+let lsSpeedSession=null;
+function lsClearSpeed(){if(lsSpeedSession?.url)URL.revokeObjectURL(lsSpeedSession.url);lsSpeedSession=null;}
+detail.addEventListener('close',lsClearSpeed);
+const lsUnifiedOpen=openGif;
+openGif=async function(id){
+ lsClearSpeed();
+ await lsUnifiedOpen(id);
+ const large=detail.querySelector('.gif-large'),media=large?.querySelector('img,video');
+ if(!detail.open||!media||media.dataset.detailSign!==id)return;
+ const state={id,rate:1,url:'',seq:0};lsSpeedSession=state;
+ const panel=document.createElement('div');panel.className='ls-unified-speed';panel.setAttribute('role','group');panel.setAttribute('aria-label','Velocidade');
+ const status=document.createElement('small');status.setAttribute('role','status');status.style.display='block';
+ const buttons=[];
+ function paint(){buttons.forEach(([b,r])=>{b.setAttribute('aria-pressed',String(r===state.rate));b.classList.toggle('on',r===state.rate);});}
+ for(const [rate,label] of [[.25,'0,25×'],[.5,'0,50×'],[.75,'0,75×'],[1,'Normal']]){
+ const b=document.createElement('button');b.type='button';b.textContent=label;buttons.push([b,rate]);panel.append(b);
+ b.onclick=async()=>{const seq=++state.seq;status.textContent='';try{
+ const el=large.querySelector('video,img');if(!el)throw Error('Arquivo indisponível.');
+ if(el.tagName==='VIDEO'){el.playbackRate=rate;el.loop=true;el.play().catch(()=>{});}
+ else {const s=D.signs.find(x=>x.id===id);if(!s||!canSeeSign(s))throw Error('Arquivo indisponível.');
+ let src=imageURL(s.gif);
+ if(!src||src.startsWith('data:image/svg')){if(s.globalKey&&D.onlineToken){const p=await rpc('onlineGifMedia',onlineToken(),s.globalKey);state.bytes=Uint8Array.from(atob(p.data),c=>c.charCodeAt(0)).buffer;}else throw Error('Aguarde o carregamento do GIF.');}
+ if(!state.bytes){const response=await fetch(src);if(!response.ok)throw Error('Não foi possível carregar o GIF.');state.bytes=await response.arrayBuffer();}
+ if(lsSpeedSession!==state||seq!==state.seq||!detail.open)return;
+ const blob=rate===1?new Blob([state.bytes],{type:'image/gif'}):lsGifAtRate(state.bytes,rate);
+ const url=URL.createObjectURL(blob),old=state.url;state.url=url;el.src=url;if(old)URL.revokeObjectURL(old);
+ }
+ if(lsSpeedSession===state&&seq===state.seq){state.rate=rate;paint();}
+ }catch(e){if(lsSpeedSession===state&&seq===state.seq)status.textContent=e.message;}};
+ }
+ large.after(panel,status);paint();
+};
+const lsSpeedStyle=document.createElement('style');lsSpeedStyle.textContent='#detail{box-sizing:border-box;width:min(94vw,720px);max-width:94vw;max-height:90dvh;margin:auto;overflow:auto}#detailBody{min-width:0;width:100%;box-sizing:border-box}#detail .gif-large{width:100%;max-width:100%;min-width:0}#detail .gif-detail-bar{max-width:100%;min-width:0;flex-wrap:wrap}#detail .ls-unified-speed{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}#detail .ls-unified-speed button{flex:1 1 auto;min-width:0;padding:8px 10px}#detail .ls-unified-speed button[aria-pressed=true]{background:#2455a5;color:white}#detail #closeDetail{position:relative;z-index:2}';document.head.append(lsSpeedStyle);
 
 </script></body></html>
