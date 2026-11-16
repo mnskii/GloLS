@@ -920,4 +920,21 @@ const lsEditFieldsBefore=openGifOptions;openGifOptions=function(id){lsEditFields
 
 function lsSearchSignal(s,value){const q=norm(String(value||'').trim());if(!q)return true;const u=authorOf(s),own=u?.id===me()?.id,p=u?privacyFor(u):{},visible=own||p.profile;const h=visible&&(own||p.handle)?String(u?.handle||''):'',name=visible?String(u?.name||''):'',email=own?String(u?.email||''):'';if(q.startsWith('@'))return !!h&&norm(h).includes(q.slice(1));if(q.includes('@'))return !!email&&norm(email).includes(q);return norm([s.word,s.category,s.caption,s.tags,s.syn,s.region,s.desc,s.lang,h,name,email.split('@')[0]].join(' ')).includes(q);}
 
+
+/* Login: lowercase identifiers and optional password visibility. */
+const lsLoginBeforePasswordVisibility=login;
+login=function(){
+ lsLoginBeforePasswordVisibility();
+ for(const id of ['e','h']){
+  const field=document.getElementById(id);if(!field)continue;
+  field.setAttribute('autocapitalize','none');field.setAttribute('autocorrect','off');field.spellcheck=false;
+  const lower=()=>{const value=field.value,next=value.toLowerCase();if(value===next)return;const start=field.selectionStart,end=field.selectionEnd;field.value=next;if(start!==null&&end!==null)try{field.setSelectionRange(start,end);}catch(_){}};
+  field.addEventListener('input',e=>{if(!e.isComposing)lower();});field.addEventListener('compositionend',lower);field.addEventListener('change',lower);lower();
+ }
+ const password=document.getElementById('p');if(!password)return;
+ const label=document.createElement('label');label.htmlFor='lsShowLoginPassword';label.style.cssText='display:flex;align-items:center;gap:8px;margin:8px 0 12px;font-weight:normal;cursor:pointer';
+ const check=document.createElement('input');check.type='checkbox';check.id='lsShowLoginPassword';check.style.cssText='width:18px;height:18px;margin:0;flex:none';check.addEventListener('change',()=>{password.type=check.checked?'text':'password';});
+ const caption=document.createElement('span');caption.textContent=appText('Mostrar senha');label.append(check,caption);password.after(label);
+};
+Object.assign(profileDictionary,{'Mostrar senha':['Show password','Mostrar contraseña']});uiReverse.set('Show password','Mostrar senha');uiReverse.set('Mostrar contraseña','Mostrar senha');
 </script></body></html>
